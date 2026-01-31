@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "LeetCode GitHub Pusher",
+  "version": "1.0",
+  "description": "Automatically pushes successful LeetCode submissions to GitHub",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "notifications",
+    "https://leetcode.com/*",
+    "https://api.github.com/*"
+  ],
+  "host_permissions": [
+    "https://leetcode.com/*",
+    "https://api.github.com/*",
+    "https://openrouter.ai/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://leetcode.com/problems/*"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "LeetCode GitHub Pusher"
+  },
+  "icons": {
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
