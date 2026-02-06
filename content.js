@@ -92,16 +92,16 @@ function cleanCode(code) {
   return cleanedLines.join('\n');
 }
 
-// Function to get the submitted code - tries multiple methods, returns FIRST successful one
+// Function to get the submitted code - focuses on reliable methods
 function getSubmittedCode() {
   let allExtractedCodes = [];
   
-  // Method 1: Try to access Monaco editor directly (BEST - gets full code, no duplicates)
+  // Method 1: Try to access Monaco editor directly (BEST - gets full code)
+  // This works if the Monaco editor is exposed on the window object
   try {
     if (window.monaco && window.monaco.editor) {
       const editors = window.monaco.editor.getEditors();
       if (editors && editors.length > 0) {
-        // Try all editors and get the one with the most code
         let bestCode = '';
         let bestLength = 0;
         
@@ -110,15 +110,12 @@ function getSubmittedCode() {
             const model = editor.getModel();
             if (model && model.getValue) {
               const code = model.getValue();
-              allExtractedCodes.push({ source: 'Monaco model', code, length: code.trim().length });
               if (code && code.trim().length > bestLength) {
                 bestCode = code;
                 bestLength = code.trim().length;
               }
             }
-          } catch (e) {
-            console.log('⚠️ [LeetCode Pusher] Error accessing Monaco editor:', e);
-          }
+          } catch (e) {}
         }
         
         if (bestCode && bestCode.trim().length > 20) {
@@ -128,133 +125,65 @@ function getSubmittedCode() {
       }
     }
   } catch (e) {
-    console.log('⚠️ [LeetCode Pusher] Could not access Monaco editor model:', e);
+    console.log('⚠️ [LeetCode Pusher] Monaco editor model access failed:', e);
   }
 
-  // Method 2: Try textarea (including hidden ones) - often has full code, no duplicates
+  // Method 2: Try hidden textareas - LeetCode often keeps the full code in a hidden textarea
   try {
     const textareas = document.querySelectorAll('textarea');
     let bestTextarea = null;
     let maxLength = 0;
     
-    // First pass: look for specifically named textareas
     for (const textarea of textareas) {
-      if (textarea.value && textarea.value.trim().length > 0) {
-        const style = window.getComputedStyle(textarea);
-        // Prefer textareas that are likely to contain the code
-        if (textarea.name === 'code' || 
-            textarea.getAttribute('data-cy') === 'code-area' ||
-            (textarea.id && textarea.id.includes('code'))) {
-          if (textarea.value.trim().length > maxLength) {
-            bestTextarea = textarea;
-            maxLength = textarea.value.trim().length;
-          }
+      const val = textarea.value || '';
+      const len = val.trim().length;
+      
+      // Specifically check for code-related textareas first
+      if (textarea.name === 'code' || 
+          textarea.getAttribute('data-cy') === 'code-area' ||
+          (textarea.id && textarea.id.includes('code'))) {
+        if (len > 20) {
+          console.log(`✅ [LeetCode Pusher] Code extracted from targeted textarea (${len} chars)`);
+          return cleanCode(val);
         }
       }
-    }
-    
-    // If we found a good textarea, use it
-    if (bestTextarea && bestTextarea.value.trim().length > 20) {
-      allExtractedCodes.push({ source: 'textarea', code: bestTextarea.value, length: bestTextarea.value.trim().length });
-      console.log(`✅ [LeetCode Pusher] Code extracted from textarea (${bestTextarea.value.trim().length} chars)`);
-      return cleanCode(bestTextarea.value);
-    }
-    
-    // Second pass: get the longest textarea (fallback)
-    for (const textarea of textareas) {
-      if (textarea.value && textarea.value.trim().length > maxLength) {
+      
+      if (len > maxLength) {
         bestTextarea = textarea;
-        maxLength = textarea.value.trim().length;
+        maxLength = len;
       }
     }
     
-    if (bestTextarea && bestTextarea.value.trim().length > 20) {
-      allExtractedCodes.push({ source: 'fallback textarea', code: bestTextarea.value, length: bestTextarea.value.trim().length });
-      console.log(`✅ [LeetCode Pusher] Code extracted from fallback textarea (${bestTextarea.value.trim().length} chars)`);
+    if (bestTextarea && maxLength > 20) {
+      console.log(`✅ [LeetCode Pusher] Code extracted from longest textarea (${maxLength} chars)`);
       return cleanCode(bestTextarea.value);
     }
   } catch (e) {
-    console.log('⚠️ [LeetCode Pusher] Could not extract from textarea:', e);
+    console.log('⚠️ [LeetCode Pusher] Textarea extraction failed:', e);
   }
 
-  // Method 3: Extract from Monaco editor view lines (LAST RESORT - may have duplicates)
-  // Only use this if other methods failed, and deduplicate
-  try {
-    const viewLines = document.querySelectorAll('.monaco-editor .view-lines .view-line');
-    if (viewLines && viewLines.length > 0) {
-      const seenLines = new Set();
-      const uniqueLines = [];
-      
-      // Extract lines and remove duplicates
-      for (const line of viewLines) {
-        const spans = line.querySelectorAll('span');
-        let lineText = '';
-        
-        if (spans.length > 0) {
-          lineText = Array.from(spans).map(span => span.textContent || '').join('');
-        } else {
-          lineText = line.textContent || '';
-        }
-        
-        const trimmed = lineText.trim();
-        // Only add if not a duplicate (allow empty lines)
-        if (trimmed === '' || !seenLines.has(trimmed)) {
-          uniqueLines.push(lineText);
-          if (trimmed !== '') {
-            seenLines.add(trimmed);
-          }
-        }
-      }
-      
-      const extractedCode = uniqueLines.join('\n');
-      if (extractedCode && extractedCode.trim().length > 10) {
-        console.log('✅ [LeetCode Pusher] Code extracted from Monaco view-lines (deduplicated)');
-        return cleanCode(extractedCode);
-      }
-    }
-  } catch (e) {
-    console.log('⚠️ [LeetCode Pusher] Could not extract from view-lines:', e);
-  }
-
-  // Method 4: Try CodeMirror
+  // Method 3: Try CodeMirror/Ace fallbacks
   try {
     const codeMirror = document.querySelector('.CodeMirror');
     if (codeMirror && codeMirror.CodeMirror) {
       const cmCode = codeMirror.CodeMirror.getValue();
-      if (cmCode && cmCode.trim().length > 10) {
+      if (cmCode && cmCode.trim().length > 20) {
         console.log('✅ [LeetCode Pusher] Code extracted from CodeMirror');
         return cleanCode(cmCode);
       }
     }
-  } catch (e) {
-    console.log('⚠️ [LeetCode Pusher] Could not extract from CodeMirror:', e);
-  }
 
-  // Method 5: Try Ace editor
-  try {
     const aceEditor = document.querySelector('.ace_editor');
     if (aceEditor && aceEditor.env && aceEditor.env.editor) {
       const aceCode = aceEditor.env.editor.getValue();
-      if (aceCode && aceCode.trim().length > 10) {
+      if (aceCode && aceCode.trim().length > 20) {
         console.log('✅ [LeetCode Pusher] Code extracted from Ace editor');
         return cleanCode(aceCode);
       }
     }
-  } catch (e) {
-    console.log('⚠️ [LeetCode Pusher] Could not extract from Ace editor:', e);
-  }
+  } catch (e) {}
 
-  // Log all extraction attempts for debugging
-  if (allExtractedCodes.length > 0) {
-    console.warn('⚠️ [LeetCode Pusher] Found code but too short:', allExtractedCodes.map(e => ({
-      source: e.source,
-      length: e.length,
-      preview: e.code.substring(0, 50)
-    })));
-  } else {
-    console.warn('⚠️ [LeetCode Pusher] No code found with any method');
-  }
-  
+  console.warn('⚠️ [LeetCode Pusher] No full code found using reliable methods');
   return '';
 }
 
@@ -271,189 +200,77 @@ function isExtensionContextValid() {
 function detectSuccessfulSubmission() {
   try {
     const now = Date.now();
-    if (now - lastSubmissionTime < SUBMISSION_COOLDOWN) {
-      return; // Prevent duplicate submissions
-    }
-
-    // Check for success indicators
+    
+    // Check for success indicators in the DOM
     const successIndicators = [
-      '.success__3Ai7', // LeetCode success class
-      '[data-cy="submission-result"]', // New LeetCode UI
-      '.ant-alert-success', // Ant Design success alert
-      '.text-green-500', // Tailwind success text
+      '.success__3Ai7', 
+      '[data-cy="submission-result-success"]',
+      '.ant-alert-success',
+      '.text-green-500',
       '.text-green-600'
     ];
 
-    // Check for "Accepted" text
-    const acceptedText = document.body.textContent.includes('Accepted') ||
-                        document.body.textContent.includes('accepted');
-
-    // Check for success elements
     const hasSuccessElement = successIndicators.some(selector => {
-      return document.querySelector(selector) !== null;
+      const el = document.querySelector(selector);
+      return el && (el.innerText.includes('Accepted') || el.textContent.includes('Accepted'));
     });
 
-    // Also check for submission success message
-    const successMessage = document.querySelector('.success-message') ||
-                          document.querySelector('[class*="success"]') ||
-                          document.querySelector('[class*="accepted"]');
+    // Fallback text-based check
+    const acceptedText = document.body.textContent.includes('Accepted');
 
-    if ((hasSuccessElement || acceptedText || successMessage) && acceptedText) {
-      // Prevent multiple simultaneous processing
-      if (isProcessing) {
-        console.log('⏭️ [LeetCode Pusher] Already processing a submission, skipping');
-        return;
-      }
+    if (hasSuccessElement || acceptedText) {
+      if (isProcessing) return;
 
       const problemName = getProblemName();
-      
-      // Validate problem name
-      if (!problemName || problemName === 'unknown_problem') {
-        console.warn('⚠️ [LeetCode Pusher] Invalid problem name, skipping');
-        return;
-      }
+      if (!problemName || problemName === 'unknown_problem') return;
       
       const language = detectLanguage();
-      // Use more precise timestamp to avoid collisions
-      const submissionKey = `${problemName}_${language}_${now}`;
+      // Only track one submission per problem+language per short period
+      const submissionKey = `${problemName}_${language}`;
       
-      // Check if this is the exact same submission as last time
-      if (submissionKey === lastSubmissionKey) {
-        console.log('⏭️ [LeetCode Pusher] Exact duplicate submission detected, skipping');
+      // Prevent duplicates: must be a new submission or significantly later
+      if (submittedProblems.has(submissionKey) && (now - lastSubmissionTime < 30000)) {
         return;
       }
       
-      // Check if we already submitted this problem+language combination recently
-      if (submittedProblems.has(submissionKey)) {
-        console.log('⏭️ [LeetCode Pusher] Already submitted this problem, skipping duplicate');
-        return;
-      }
-      
-      // Check cooldown period
-      if (now - lastSubmissionTime < SUBMISSION_COOLDOWN) {
-        console.log(`⏭️ [LeetCode Pusher] Too soon after last submission (${Math.floor((now - lastSubmissionTime) / 1000)}s ago), skipping`);
-        return;
-      }
-
-      console.log('✅ [LeetCode Pusher] Submission successful detected!');
+      console.log('✅ [LeetCode Pusher] Successful submission detected for:', problemName);
       isProcessing = true;
+      lastSubmissionTime = now;
+      submittedProblems.add(submissionKey);
 
-      // Try multiple times with increasing delays to ensure code is available
-      let attempts = 0;
-      const maxAttempts = 5;
-      const attemptDelay = 300; // Start with 300ms, increase each attempt
-      
-      const tryExtractCode = () => {
-        attempts++;
+      // Brief delay to ensure state is updated
+      setTimeout(() => {
         const code = getSubmittedCode();
         
-        // Log code preview for debugging
-        const codePreview = code.substring(0, 200).replace(/\n/g, '\\n');
-        const lineCount = code.split('\n').length;
-        const firstLines = code.split('\n').slice(0, 5).join('\\n');
-
-        console.log(`📝 [LeetCode Pusher] Extraction attempt ${attempts}/${maxAttempts}:`, {
-          problemName,
-          language,
-          codeLength: code.length,
-          lineCount: lineCount,
-          hasCode: !!code.trim(),
-          firstLines: firstLines,
-          codePreview: codePreview + (code.length > 200 ? '...' : '')
-        });
-
-        // Check if we have valid code and it's not extension code
-        if (code.trim() && code.trim().length > 20) {
-          // Validate that this is actual LeetCode code, not extension code
-          const codeLower = code.toLowerCase();
-          if (codeLower.includes('chrome.runtime') || 
-              codeLower.includes('content.js') || 
-              codeLower.includes('background.js') ||
-              codeLower.includes('leetcode github pusher') ||
-              codeLower.includes('extension context')) {
-            console.warn('⚠️ [LeetCode Pusher] Detected extension code, skipping');
-            isProcessing = false;
-            return;
-          }
+        if (code && code.trim().length > 20) {
+          console.log('✅ [LeetCode Pusher] Full code extracted, sending to background...');
           
-          // We have good code, proceed
-          console.log('✅ [LeetCode Pusher] Valid code extracted!');
-          const currentTime = Date.now();
-          lastSubmissionTime = currentTime;
-          lastSubmissionKey = submissionKey;
-          submittedProblems.add(submissionKey);
-          
-          // Clean up old entries (keep only last 20)
-          if (submittedProblems.size > 20) {
-            const entries = Array.from(submittedProblems);
-            submittedProblems = new Set(entries.slice(-20));
-          }
-
-          // Check if extension context is still valid (safe check)
-          if (!isExtensionContextValid()) {
-            console.warn('⚠️ [LeetCode Pusher] Extension context invalidated. Please reload the page.');
+          chrome.runtime.sendMessage({
+            action: 'submission_success',
+            problemName: problemName,
+            problemDescription: getProblemDescription(),
+            code: code,
+            language: language
+          }, (response) => {
             isProcessing = false;
-            return;
-          }
-
-          // Send message to background script with error handling
-          try {
-            chrome.runtime.sendMessage({
-              action: 'submission_success',
-              problemName: problemName,
-              problemDescription: getProblemDescription(), // Add problem description
-              code: code,
-              language: language
-            }, (response) => {
-              // Check for errors in the callback
-              if (chrome.runtime.lastError) {
-                const error = chrome.runtime.lastError.message;
-                if (error && error.includes('Extension context invalidated')) {
-                  console.warn('⚠️ [LeetCode Pusher] Extension was reloaded. Please refresh the page to continue.');
-                } else {
-                  console.error('❌ [LeetCode Pusher] Error sending message:', chrome.runtime.lastError);
-                }
-                // Remove from set on error so it can retry
-                submittedProblems.delete(submissionKey);
-              } else {
-                console.log('✅ [LeetCode Pusher] Message sent to background script:', response);
-              }
-              isProcessing = false; // Reset processing flag
-            });
-          } catch (error) {
-            if (error && error.message && error.message.includes('Extension context invalidated')) {
-              console.warn('⚠️ [LeetCode Pusher] Extension context invalidated. Please reload the page.');
-            } else {
-              console.error('❌ [LeetCode Pusher] Error sending message:', error);
+            if (chrome.runtime.lastError) {
+              console.error('❌ [LeetCode Pusher] Message error:', chrome.runtime.lastError);
+              submittedProblems.delete(submissionKey); // Allow retry on error
             }
-            // Remove from set on error so it can retry
-            submittedProblems.delete(submissionKey);
-            isProcessing = false; // Reset processing flag
-          }
+          });
         } else {
-          // Code not ready yet, try again
-          if (attempts < maxAttempts) {
-            console.log(`⏳ [LeetCode Pusher] Code not ready (${code.trim().length} chars), retrying in ${attemptDelay * attempts}ms...`);
-            setTimeout(tryExtractCode, attemptDelay * attempts);
-          } else {
-            console.warn('⚠️ [LeetCode Pusher] Could not extract valid code after all attempts');
-            isProcessing = false; // Reset processing flag
-          }
+          console.warn('⚠️ [LeetCode Pusher] Could not extract valid code');
+          isProcessing = false;
+          submittedProblems.delete(submissionKey);
         }
-      };
-      
-      // Start first attempt after initial delay
-      setTimeout(tryExtractCode, 500);
+      }, 1000);
     }
   } catch (error) {
-    // Catch any errors that might occur, especially extension context errors
-    if (error && error.message && error.message.includes('Extension context invalidated')) {
-      console.warn('⚠️ [LeetCode Pusher] Extension context invalidated. Please reload the page.');
-    } else {
-      console.error('❌ [LeetCode Pusher] Error in detectSuccessfulSubmission:', error);
-    }
+    console.error('❌ [LeetCode Pusher] Detection error:', error);
+    isProcessing = false;
   }
 }
+
 
 // Function to detect programming language
 function detectLanguage() {
