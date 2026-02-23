@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 300px;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    label {
+      font-weight: 500;
+      font-size: 14px;
+    }
+
+    input {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    button {
+      padding: 10px;
+      background: #007acc;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    button:hover {
+      background: #005999;
+    }
+
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .status {
+      padding: 10px;
+      border-radius: 4px;
+      font-size: 14px;
+      display: none;
+    }
+
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .status.info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+
+    .instructions {
+      font-size: 12px;
+      color: #666;
+      line-height: 1.4;
+    }
+
+    a {
+      color: #007acc;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>LeetCode GitHub Pusher</h2>
+
+    <div class="form-group">
+      <label for="githubUsername">GitHub Username:</label>
+      <input type="text" id="githubUsername" placeholder="your-github-username">
+    </div>
+
+    <div class="form-group">
+      <label for="githubToken">GitHub Personal Access Token:</label>
+      <input type="password" id="githubToken" placeholder="ghp_xxxxxxxxxxxx">
+    </div>
+
+    <div class="form-group">
+      <label for="openrouterKey">OpenRouter API Key (Optional - for AI formatting):</label>
+      <input type="password" id="openrouterKey" placeholder="sk-or-v1-xxxxxxxxxxxx">
+      <small style="font-size: 11px; color: #666;">Get your key from <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a></small>
+    </div>
+
+    <button id="saveBtn">Save Settings</button>
+    <button id="testBtn" style="background: #28a745;">Test Connection</button>
+
+    <div id="status" class="status"></div>
+
+    <div class="instructions">
+      <p><strong>How to get a GitHub token:</strong></p>
+      <ol>
+        <li>Go to <a href="https://github.com/settings/tokens" target="_blank">GitHub Settings → Personal Access Tokens</a></li>
+        <li>Generate new token (classic)</li>
+        <li>Select scopes: <code>repo</code> (full control of private repositories)</li>
+        <li>Copy the token and paste it above</li>
+      </ol>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
